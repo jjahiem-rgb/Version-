@@ -1,0 +1,58 @@
+name: Test Decompte Sécurisé
+
+on:
+  repository_dispatch:
+    types: [start_test]
+
+jobs:
+  test_countdown:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupération du dépôt
+        uses: actions/checkout@v4
+
+      - name: Test de décompte
+        env:
+          HOURS_INPUT: ${{ github.event.client_payload.hours }}
+        run: |
+          # 1. Conversion en minutes
+          HOURS=${HOURS_INPUT:-1}
+          TOTAL_MINUTES=$((HOURS * 60))
+
+          echo "Lancement du test pour $HOURS heure(s)..."
+
+          # Config Git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 2. Boucle de test
+          while [ $TOTAL_MINUTES -gt 0 ]; do
+            if [ $TOTAL_MINUTES -gt 60 ]; then
+              SLEEP_MIN=60
+            else
+              SLEEP_MIN=1
+            fi
+
+            sleep $((SLEEP_MIN * 60))
+            TOTAL_MINUTES=$((TOTAL_MINUTES - SLEEP_MIN))
+
+            REM_H=$((TOTAL_MINUTES / 60))
+            REM_M=$((TOTAL_MINUTES % 60))
+
+            # Ne modifie QUE la ligne [TEST_CHRONO]
+            sed -i -E "s/\[TEST_CHRONO\].*/\[TEST_CHRONO\] ${REM_H}h ${REM_M}m restantes/" README.md
+
+            git add README.md
+            git commit -m "Test chrono: ${REM_H}h ${REM_M}m" || true
+            git push
+          done
+
+          # 3. Fin du test (aucune modification de version)
+          sed -i -E "s/\[TEST_CHRONO\].*/\[TEST_CHRONO\] Test terminé avec succès !/" README.md
+          git add README.md
+          git commit -m "Test décompte terminé"
+          git push
+
